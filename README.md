@@ -13,6 +13,8 @@ represented in Butler.
    instance. 
 3. **External calls** any external system can tell a service to emit an event. 
 
+![diagram](https://raw.githubusercontent.com/bingomanatee/butler/master/documentation/bridges%20and%20triggers.png)
+
 ## Creating connections between Service instances
 
 The `.bridge` and `.trigger` methods of a Service instance create cause-and-effects
