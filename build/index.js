@@ -118,15 +118,18 @@ class Service extends external__eventemitter3__default.a {
   }
 
   bridge({
-    on, fromService = this, toService = this,
+    on, fromService = this, target = this,
     emit, action = identity, async = false
   }) {
     let bridge;
 
     if (async) {
-      bridge = (...args) => action(args).then(result => toService.emit(emit, result)).catch(err => console.log(`error on ${on} >> ${emit}: ${err.message}`));
+      bridge = (...args) => action(...args).then(result => {
+        console.log('async result: ', result);
+        target.emit(emit, result);
+      }).catch(err => console.log(`error on ${on} >> ${emit}: ${err.message}`));
     } else {
-      bridge = (...args) => toService.emit(emit, action(args));
+      bridge = (...args) => target.emit(emit, action(...args));
     }
 
     const enable = () => fromService.on(on, bridge);
@@ -138,24 +141,38 @@ class Service extends external__eventemitter3__default.a {
   }
 
   trigger({
-    on, fromService = this, target = this, method, callType = 'pass', action = identity
+    on, fromService = this, async = false,
+    target = this, method, callType = 'pass', action = identity
   }) {
     let bridge;
     if (!method) throw new Error('method missing on trigger');
     switch (callType) {
       case 'pass':
-        bridge = (...args) => target[method](action(...args));
+        if (async) {
+          bridge = (...args) => action(...args).then(result => target[method](result));
+        } else {
+          bridge = (...args) => target[method](action(...args));
+        }
+
         break;
 
       case 'apply':
-        bridge = (...args) => {
-          const actionValue = action(args);
-          target[method](...actionValue);
-        };
+        if (async) {
+          bridge = (...args) => action(...args).then(result => {
+            console.log('async apply: ', result);
+            target[method](...result);
+          });
+        } else {
+          bridge = (...args) => {
+            const targetArgs = action(...args);
+            target[method](...targetArgs);
+          };
+        }
+
         break;
 
       default:
-        bridge = (...args) => target[method](action(args));
+        bridge = (...args) => target[method](action(...args));
     }
 
     const enable = () => fromService.on(on, bridge);

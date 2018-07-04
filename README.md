@@ -25,7 +25,7 @@ then the calling service is active:
 
 * *when* the `fromEvent` event emits from the `fromService`
 * ... the payload of the `fromEvent` emission (optionally filtered by `action`)
-* ... is emitted as `emit` on `toService`. 
+* ... is emitted as `emit` on `target`. 
 
 Note the default service *in both cases* is the service from which you call `.bridge`.
 So if those values aren't provided you'll be both watching for `fromEvent` on the 
@@ -53,6 +53,22 @@ so unless specified, this will call a method on the service instance itself.
 There's no special mechanic for triggering an event on a service from the outside. 
 Just call `.emit(type, payload...)` on the service. 
 
+## Service Relationships
+
+Both bridge and trigger are treefold actors. 
+
+1. the service on which you call `.bridge` or `.trigger` is the *initiating* service. 
+   It is not necessarily the service whose emission is being watched, *or* the service
+   that will receive the action, but by default, ***it is both of these.***
+2. the **source** of the event. It can be a service, even the initiating service, or 
+   any other event emitter that has the EventEmitter interface.
+3. the **target**. for `.bridge`, its an EventEmitter that will get an event. 
+   for `.target`, its an object whose method will be called. 
+   
+In all cases, the `action` parameter can filter the payload of the event before its
+sent to the target. `action` is optional; if omitted, the payload will transmit
+unchanged. 
+
 ## Service Lifecycle 
 
 Services can be turned on and off. The `.serviceStart()` and `.serviceEnd()` calls
@@ -61,13 +77,25 @@ enable or disable all relationships initiated by a service.
 Only the state of the *initiating service* matters here. the links are active when
 and always if, the initiating service is on, and until it's turned off.
 
-That is, the status of the linked services are ignored. T
+That is, the status of the linked services are not respected, even if one of them is also
+the initiating service. 
 
 `.bridge` and `.trigger` can be called from anywhere, at any time. You can call 
 them in the constructor, in the code that creates them, in a method, etc. 
 
-They are designed to respect the initating lifecycle regardless of whether they are 
+They are designed to respect the initiating lifecycle regardless of whether they are 
 called before or after the service is on, and to shut off when it's turned off. 
 
+in other words, if you bridge when your service is on, your effect will be immediate.
+If you bridge when its off, you have to turn the service on for your linking to be 
+applied. 
+
 ## Synchronicity
+
+Events are synchronous by default. The async flag exists to compensate 
+for an asynchronous action. 
+
+If you use the async flag then it is expected that the action
+will return a promise whose result is applied to the target. 
+
 

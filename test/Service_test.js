@@ -4,7 +4,7 @@ const EVENT_SET = 'set';
 const EVENT_LOG = 'log';
 const EVENT_ADD = 'add';
 
-const wait100ticks = () => (new Promise(resolve => setTimeout(resolve, 100)));
+const wait100ticks = () => (new Promise(resolve => setTimeout(() => process.nextTick(resolve), 100)));
 describe('Service', () => {
   let dataService;
   let dataBase;
@@ -28,7 +28,7 @@ describe('Service', () => {
           fromService: dataService,
           on: EVENT_SET,
           emit: EVENT_LOG,
-          action: ([key, value]) => `${key} set to ${value}`,
+          action: (key, value) => `${key} set to ${value}`,
         });
       });
 
@@ -65,34 +65,43 @@ describe('Service', () => {
       });
     });
 
-    /* describe('async listening', () => {
+    describe('async listening', () => {
       beforeEach(() => {
         logger.bridge({
           fromService: dataService,
-          fromEvent: EVENT_SET,
-          toEvent: EVENT_LOG,
+          on: EVENT_SET,
+          emit: EVENT_LOG,
           async: true,
-          action: ([key, value]) => Promise.resolve(`${key} set to ${value}`),
-        });
-
-        it('should not log before starting logger', async () => {
-          expect.assertions(2);
-          dataService.emit(EVENT_SET, 'foo', 1);
-          expect(log).toEqual([]);
-          await wait100ticks();
-          expect(log).toEqual([]);
+          action: (key, value) => new Promise(resolve => resolve(`${key} set to ${value}`)),
         });
       });
-    }); */
+
+      it('should not log before starting logger', async () => {
+        expect.assertions(2);
+        dataService.emit(EVENT_SET, 'foo', 1);
+        expect(log).toEqual([]);
+        await wait100ticks();
+        expect(log).toEqual([]);
+      });
+
+      it('should log async after staring logger', async () => {
+        expect.assertions(2);
+        logger.startService();
+        dataService.emit(EVENT_SET, 'foo', 1);
+        expect(log).toEqual([]);
+        await wait100ticks();
+        expect(log).toEqual(['foo set to 1']);
+      });
+    });
 
     describe('sending to another service', () => {
       beforeEach(() => {
         tally.sum = 0;
         dataService.bridge({
-          toService: tally,
+          target: tally,
           on: EVENT_SET,
           emit: EVENT_ADD,
-          action: ([key, value]) => value,
+          action: (key, value) => value,
         });
 
         tally.on(EVENT_ADD, (value) => {
@@ -125,42 +134,90 @@ describe('Service', () => {
   });
 
   describe('trigger', () => {
-    beforeEach(() => {
-      dataBase = new Map();
-      class DB extends Service {
-        constructor() {
-          super();
+    describe('synchronous', () => {
+      beforeEach(() => {
+        dataBase = new Map();
+        class DB extends Service {
+          constructor() {
+            super();
 
-          this.trigger({
-            on: EVENT_SET,
-            action: ([key, value]) => [key, value],
-            callType: 'apply',
-            method: 'set',
-            target: dataBase,
-          });
+            this.trigger({
+              on: EVENT_SET,
+              callType: 'apply',
+              method: 'set',
+              target: dataBase,
+            });
+          }
         }
-      }
 
-      dataService = new DB();
+        dataService = new DB();
+      });
+
+      it('should do nothing before start', () => {
+        dataService.emit(EVENT_SET, 'foo', 1);
+        expect(dataBase.has('foo')).toBeFalsy();
+      });
+
+      it('should set foo after start', () => {
+        dataService.startService();
+        dataService.emit(EVENT_SET, 'foo', 1);
+        expect(dataBase.get('foo')).toEqual(1);
+      });
+
+      it('should not set foo after end', () => {
+        dataService.startService();
+        dataService.emit(EVENT_SET, 'foo', 1);
+        dataService.stopService();
+        dataService.emit(EVENT_SET, 'foo', 2);
+        expect(dataBase.get('foo')).toEqual(1);
+      });
     });
 
-    it('should do nothing before start', () => {
-      dataService.emit(EVENT_SET, 'foo', 1);
-      expect(dataBase.has('foo')).toBeFalsy();
-    });
+    describe('async', () => {
+      beforeEach(() => {
+        dataBase = new Map();
+        class DB extends Service {
+          constructor() {
+            super();
 
-    it('should set foo after start', () => {
-      dataService.startService();
-      dataService.emit(EVENT_SET, 'foo', 1);
-      expect(dataBase.get('foo')).toEqual(1);
-    });
+            this.trigger({
+              on: EVENT_SET,
+              callType: 'apply',
+              async: true,
+              method: 'set',
+              action: (...args) => new Promise(respond => respond(args)),
+              target: dataBase,
+            });
+          }
+        }
 
-    it('should not set foo after end', () => {
-      dataService.startService();
-      dataService.emit(EVENT_SET, 'foo', 1);
-      dataService.stopService();
-      dataService.emit(EVENT_SET, 'foo', 2);
-      expect(dataBase.get('foo')).toEqual(1);
+        dataService = new DB();
+      });
+
+      it('should do nothing before start', async () => {
+        expect.assertions(2);
+        dataService.emit(EVENT_SET, 'foo', 1);
+        expect(dataBase.has('foo')).toBeFalsy();
+        await wait100ticks();
+        expect(dataBase.has('foo')).toBeFalsy();
+      });
+
+      it('should async set foo after start', async () => {
+        expect.assertions(2);
+        dataService.startService();
+        dataService.emit(EVENT_SET, 'foo', 1);
+        expect(dataBase.has('foo')).toBeFalsy();
+        await wait100ticks();
+        expect(dataBase.get('foo')).toEqual(1);
+      });
+
+      /*      it('should not set foo after end', () => {
+              dataService.startService();
+              dataService.emit(EVENT_SET, 'foo', 1);
+              dataService.stopService();
+              dataService.emit(EVENT_SET, 'foo', 2);
+              expect(dataBase.get('foo')).toEqual(1);
+            }); */
     });
   });
 });
