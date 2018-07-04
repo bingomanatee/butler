@@ -1,0 +1,22 @@
+{
+  "name": "butler",
+  "version": "1.0.0",
+  "main": "index.js",
+  "license": "MIT",
+  "scripts": {
+    "build": "neutrino build",
+    "start": "neutrino start",
+    "lint": "neutrino lint",
+    "test": "neutrino test",
+    "bat": "neutrino build; neutrino test"
+  },
+  "devDependencies": {
+    "@neutrinojs/airbnb-base": "^8.3.0",
+    "@neutrinojs/jest": "^8.3.0",
+    "@neutrinojs/node": "^8.3.0",
+    "neutrino": "^8.3.0"
+  },
+  "dependencies": {
+    "eventemitter3": "^3.1.0"
+  }
+}
